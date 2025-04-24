@@ -1,5 +1,5 @@
-// arc_rp.cc
 #include "mem/cache/replacement_policies/arc_rp.hh"
+#include "base/random.hh"
 #include "params/ARCRP.hh"
 #include "sim/cur_tick.hh"
 #include "mem/cache/cache_blk.hh"
@@ -11,133 +11,107 @@ namespace replacement_policy
 
 ARC::ARC(const Params &p) : Base(p) {}
 
-void
-ARC::adjustP(uint64_t set, bool hitInB1) const
+void ARC::adjustP(uint64_t set, bool hitInB1) const
 {
-    auto &meta = setMetadata[set];
-    size_t b1 = meta.B1.size();
-    size_t b2 = meta.B2.size();
-    int total = meta.T1.size() + meta.T2.size();
-
-    int delta = 1;
+    SetMetadata& metadata = setMetadataMap[set];
     if (hitInB1) {
-        // if both nonzero and B2 < B1, use ratio
-        if (b1 > 0 && b2 < b1)
-            delta = b2 / b1;
-        meta.p = std::min(meta.p + delta, total);
+        metadata.p = std::min(metadata.p + 1,
+                              static_cast<int>(metadata.T1.size() + metadata.T2.size()));
     } else {
-        if (b2 > 0 && b1 < b2)
-            delta = b1 / b2;
-        meta.p = std::max(meta.p - delta, 0);
+        metadata.p = std::max(metadata.p - 1, 0);
     }
 }
 
-ReplaceableEntry*
-ARC::getLRU(const std::list<ReplaceableEntry*>& list) const
+ReplaceableEntry* ARC::getLRU(std::list<ReplaceableEntry*>& list) const
 {
-    return list.empty() ? nullptr : list.back();
-}
-
-void
-ARC::invalidate(const std::shared_ptr<ReplacementData>& rd)
-{
-    auto* data = static_cast<ARCReplData*>(rd.get());
-    auto &meta = setMetadata[data->set];
-
-    if (data->inT1) {
-        meta.T1.remove(data->entry);
-        meta.B1.push_front(data->addr);
-    } else {
-        meta.T2.remove(data->entry);
-        meta.B2.push_front(data->addr);
+    ReplaceableEntry* lru = nullptr;
+    Tick oldest = Tick(0);
+    for (auto entry : list) {
+        Tick entryTick = std::static_pointer_cast<ARCReplData>(entry->replacementData)->lastTouchTick;
+        if (!lru || entryTick < oldest) {
+            lru = entry;
+            oldest = entryTick;
+        }
     }
+    return lru;
 }
 
-void
-ARC::touch(const std::shared_ptr<ReplacementData>& rd) const
+void ARC::invalidate(const std::shared_ptr<ReplacementData>& replacement_data)
 {
-    auto* data = static_cast<ARCReplData*>(rd.get());
-    auto &meta = setMetadata[data->set];
+    ARCReplData* data = std::static_pointer_cast<ARCReplData>(replacement_data).get();
+    SetMetadata& metadata = setMetadataMap[data->set];
+    if (data->ghost) {
+        if (data->inT1)
+            metadata.B1.erase(data->addr);
+        else
+            metadata.B2.erase(data->addr);
+    }
+    data->lastTouchTick = Tick(0);
+    data->ghost = false;
+}
 
+void ARC::touch(const std::shared_ptr<ReplacementData>& replacement_data) const
+{
+    auto data = std::static_pointer_cast<ARCReplData>(replacement_data);
+    if (data->ghost) return;
+
+    SetMetadata& metadata = setMetadataMap[data->set];
     if (data->inT1) {
-        // move from T1 → front of T2
-        meta.T1.remove(data->entry);
-        meta.T2.push_front(data->entry);
+        metadata.T1.remove(data->entry);
+        metadata.T2.push_front(data->entry);
         data->inT1 = false;
-    } else {
-        // refresh position in T2 on a T2 hit
-        meta.T2.remove(data->entry);
-        meta.T2.push_front(data->entry);
     }
     data->lastTouchTick = curTick();
 }
 
-void
-ARC::reset(const std::shared_ptr<ReplacementData>& rd) const
+void ARC::reset(const std::shared_ptr<ReplacementData>& replacement_data) const
 {
-    auto* data = static_cast<ARCReplData*>(rd.get());
+    auto data = std::static_pointer_cast<ARCReplData>(replacement_data);
+    data->set = currentSet;
+
+    // Cast ReplaceableEntry to CacheBlk to access getTag()
     CacheBlk* blk = static_cast<CacheBlk*>(data->entry);
-    data->set  = blk->getSet();
-    data->addr = blk->getTag();
+    data->addr = blk->getTag();  // Use blk->getTag()
 
-    auto &meta = setMetadata[data->set];
-
-    // ghost-list hits?
-    auto b1_it = std::find(meta.B1.begin(), meta.B1.end(), data->addr);
-    auto b2_it = std::find(meta.B2.begin(), meta.B2.end(), data->addr);
-
-    if (b1_it != meta.B1.end()) {
+    SetMetadata& metadata = setMetadataMap[data->set];
+    if (metadata.B1.erase(data->addr)) {
         adjustP(data->set, true);
-        meta.B1.erase(b1_it);
-        meta.T2.push_front(data->entry);
         data->inT1 = false;
-    } else if (b2_it != meta.B2.end()) {
+        metadata.T2.push_front(data->entry);
+    } else if (metadata.B2.erase(data->addr)) {
         adjustP(data->set, false);
-        meta.B2.erase(b2_it);
-        meta.T2.push_front(data->entry);
         data->inT1 = false;
+        metadata.T2.push_front(data->entry);
     } else {
-        // cold miss
-        meta.T1.push_front(data->entry);
         data->inT1 = true;
+        metadata.T1.push_front(data->entry);
     }
-
     data->lastTouchTick = curTick();
+    data->ghost = false;
 }
-
-ReplaceableEntry*
-ARC::getVictim(const ReplacementCandidates& candidates) const
+  
+ReplaceableEntry* ARC::getVictim(const ReplacementCandidates& candidates) const
 {
-    const uint64_t set = candidates[0]->getSet();
-    auto &meta = setMetadata[set];
+    assert(!candidates.empty());
+    currentSet = candidates[0]->getSet();
 
-    ReplaceableEntry* victim = nullptr;
-    if (meta.T1.size() > static_cast<size_t>(meta.p) || meta.T2.empty()) {
-        victim = getLRU(meta.T1);
-    } else {
-        victim = getLRU(meta.T2);
-    }
+    SetMetadata& metadata = setMetadataMap[currentSet];
+    ReplaceableEntry* victim = (metadata.T1.size() > metadata.p || metadata.T2.empty())
+        ? getLRU(metadata.T1) : getLRU(metadata.T2);
 
     if (victim) {
-        auto vdata = static_cast<ARCReplData*>(victim->replacementData.get());
-        // move to appropriate ghost list
-        if (vdata->inT1) {
-            meta.T1.remove(victim);
-            meta.B1.push_front(vdata->addr);
-        } else {
-            meta.T2.remove(victim);
-            meta.B2.push_front(vdata->addr);
-        }
+        auto data = std::static_pointer_cast<ARCReplData>(victim->replacementData);
+        (data->inT1 ? metadata.B1 : metadata.B2)[data->addr] = victim;
+        (data->inT1 ? metadata.T1 : metadata.T2).remove(victim);
+        data->ghost = true;
     }
 
     return victim;
 }
 
-std::shared_ptr<ReplacementData>
-ARC::instantiateEntry(ReplaceableEntry* e)
+std::shared_ptr<ReplacementData> ARC::instantiateEntry()
 {
-    // pass the real entry ptr into our ReplData
-    return std::make_shared<ARCReplData>(e);
+    return std::shared_ptr<ReplacementData>(new ARCReplData(nullptr)); 
 }
 
 } // namespace replacement_policy
