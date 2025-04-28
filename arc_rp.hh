@@ -3,61 +3,68 @@
 
 #include "mem/cache/replacement_policies/base.hh"
 #include <list>
-#include <unordered_map>
+#include <vector>
 
-namespace gem5
-{
+namespace gem5 {
+namespace replacement_policy {
 
-struct ARCRPParams;
-
-namespace replacement_policy
-{
-
+/** The ARC replacement policy applied per cache set. */
 class ARC : public Base
 {
   protected:
-    // Replacement data for ARC
-    struct ARCReplData : ReplacementData
-    {
-      ARCReplData(ReplaceableEntry* entry)
-        : entry(entry), lastTouchTick(0), inT1(false), ghost(false), addr(0), set(0) {}
+    /**  
+     * Per-block metadata we keep in ReplacementData.
+     * Mirrors the “entry” concept in the paper.
+     */
+    struct ARCReplData : public ReplacementData {
+        int     listId;   // 1=T1, 2=T2
+        bool    valid;    // in cache?
+        Addr    tag;      // block’s tag
+        int     set;      // set index
+        mutable
+        std::list<Addr>::iterator lruIter;  // position inside T1/T2
 
-      ReplaceableEntry* entry;
-      Tick lastTouchTick;
-      bool inT1;
-      bool ghost;
-      Addr addr;
-      uint64_t set;
+        ARCReplData()
+          : listId(1), valid(false), tag(0), set(-1) {}
     };
 
   public:
-    typedef ARCRPParams Params;
+    using Params = Base::Params;
     ARC(const Params &p);
-    ~ARC() = default;
+    ~ARC() override = default;
 
-    void invalidate(const std::shared_ptr<ReplacementData>& replacement_data) override;
-    void touch(const std::shared_ptr<ReplacementData>& replacement_data) const override;
-    void reset(const std::shared_ptr<ReplacementData>& replacement_data) const override;
-    ReplaceableEntry* getVictim(const ReplacementCandidates& candidates) const override;
+    // Standard ReplacementPolicy interface:
+    void invalidate(const std::shared_ptr<ReplacementData>& rd) override;
+    void touch     (const std::shared_ptr<ReplacementData>& rd) const override;
+    void reset     (const std::shared_ptr<ReplacementData>& rd) const override;
+    ReplaceableEntry*
+         getVictim(const ReplacementCandidates& cands) const override;
     std::shared_ptr<ReplacementData> instantiateEntry() override;
 
   private:
-    struct SetMetadata
-    {
-        SetMetadata() : p(0) {}
+    /**  
+     * Per-set ARC state:  
+     *   targetP[set]  — the adaptive “p” parameter for set  
+     *   ghostB1/B2    — lists of evicted tags (B1,B2)  
+     *   lruT1/T2      — the real cache lists (T1,T2)  
+     */
+    mutable std::vector<int>                  targetP;
+    mutable std::vector<std::list<Addr>>      ghostB1, ghostB2;
+    mutable std::vector<std::list<Addr>>      lruT1,   lruT2;
 
-        std::list<ReplaceableEntry*> T1;
-        std::list<ReplaceableEntry*> T2;
-        std::unordered_map<Addr, ReplaceableEntry*> B1;
-        std::unordered_map<Addr, ReplaceableEntry*> B2;
-        int p;
-    };
+    /** Grow all vectors if we see a set index for the first time */
+    void ensureSetExists(int set) const;
 
-    mutable std::unordered_map<uint64_t, SetMetadata> setMetadataMap;
-    mutable uint64_t currentSet;
+    /** Adjust the “p” parameter:  
+        if hit in B1, p += ⌈|B2|/|B1|⌉  
+        if hit in B2, p -= ⌈|B1|/|B2|⌉ */  
+    void adjustP(int set, bool hitInB1) const;
 
-    void adjustP(uint64_t set, bool hitInB1) const;
-    ReplaceableEntry* getLRU(std::list<ReplaceableEntry*>& list) const;
+    /** When evicting from T1/T2, append tag to B1/B2 and cap size to associativity */
+    void addToGhost(int set, bool isB1, Addr tag, int assoc) const;
+
+    /** Remove from B1 or B2 if present (for ghost hits) */
+    bool removeFromGhost(int set, bool isB1, Addr tag) const;
 };
 
 } // namespace replacement_policy
