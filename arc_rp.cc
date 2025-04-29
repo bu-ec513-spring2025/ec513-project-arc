@@ -1,221 +1,176 @@
 #include "mem/cache/replacement_policies/arc_rp.hh"
 #include "params/ARCRP.hh"
 #include "mem/cache/cache_blk.hh"
+#include "sim/cur_tick.hh"
 #include <algorithm>
-#include <cassert>
+#include <cmath>
 
-namespace gem5 {
-namespace replacement_policy {
+namespace gem5
+{
+namespace replacement_policy
+{
 
-/** Constructor just calls Base; we delay sizing until first use. */
-ARC::ARC(const Params &p) : Base(p) {}
+ARC::ARC(const Params &p)
+    : Base(p)
+{
+    // Initialize ghost lists and targetP dynamically
+}
 
-/** Fresh ReplacementData for each block. */
 std::shared_ptr<ReplacementData>
 ARC::instantiateEntry()
 {
     return std::make_shared<ARCReplData>();
 }
 
-/**  
- * If we encounter set index “set” for first time, grow all our per-set arrays.  
- * Ensures T1/T2/B1/B2/p exist for that set.  
- */
-void
-ARC::ensureSetExists(int set) const
-{
-    if (set >= (int)targetP.size()) {
-        int newSz = set + 1;
-        targetP .resize(newSz,    0);
-        ghostB1 .resize(newSz, {});
-        ghostB2 .resize(newSz, {});
-        lruT1   .resize(newSz, {});
-        lruT2   .resize(newSz, {});
-    }
-}
-
-/**  
- * invalidate(): called when a block is evicted or invalidated  
- *  – remove from T1/T2 if present, mark valid=false  
- */
 void
 ARC::invalidate(const std::shared_ptr<ReplacementData>& rd)
 {
     auto data = std::static_pointer_cast<ARCReplData>(rd);
-    if (!data->valid) return;
-
-    ensureSetExists(data->set);
-
-    // pick the right list (T1 or T2)
-    auto &lst = (data->listId == 1 ? lruT1[data->set]
-                                  : lruT2[data->set]);
-
-    // erase by tag (safe even if our stored iterator got stale)
-    auto it = std::find(lst.begin(), lst.end(), data->tag);
-    if (it != lst.end())
-        lst.erase(it);
-
     data->valid = false;
 }
 
-/**  
- * touch(): called on a cache hit  
- *  – for ARC we do **not** reorder on touch (instead promotion happens in reset())  
- */
 void
 ARC::touch(const std::shared_ptr<ReplacementData>& rd) const
 {
-    // Intentionally empty; Ruby invokes reset() on each access.
+    auto data = std::static_pointer_cast<ARCReplData>(rd);
+    data->lastTouchTick = curTick();
+    if (data->listId == 1)
+        data->listId = 2;
 }
 
-/**  
- * reset(): called on a new fill or on any hit  
- * Implements ARC’s “on access” logic:  
- *  – ghost hits in B1/B2 adjust p and move block into T2  
- *  – cold miss → insert into T1  
- *  – always enforce |T1|+|T2| ≤ associativity  
- *  – cap B1/B2 to associativity  
- */
 void
 ARC::reset(const std::shared_ptr<ReplacementData>& rd) const
 {
     auto data = std::static_pointer_cast<ARCReplData>(rd);
-
-    // read set & tag from the CacheBlk owner
-    const CacheBlk *blk = static_cast<const CacheBlk*>(data->entry);
-    data->set   = blk->getSet();
-    data->tag   = blk->getTag();
+    data->lastTouchTick = curTick();
     data->valid = true;
 
-    ensureSetExists(data->set);
+    // Ensure entry is valid
+    ReplaceableEntry* entry = data->entry;
+    if (!entry) {
+        panic("ARC: ReplacementData not linked to ReplaceableEntry!");
+    }
 
-    // Ghost hit in B1?
-    if (removeFromGhost(data->set, true, data->tag)) {
-        adjustP(data->set, true);       // increase p
-        data->listId = 2;               // bring into T2
-        lruT2[data->set].push_back(data->tag);
-        data->lruIter = std::prev(lruT2[data->set].end());
+    int set = entry->getSet();
 
-    // Ghost hit in B2?
-    } else if (removeFromGhost(data->set, false, data->tag)) {
-        adjustP(data->set, false);      // decrease p
+    // Resize per-set data structures
+    if (set >= ghostB1.size()) {
+        ghostB1.resize(set + 1);
+        ghostB2.resize(set + 1);
+        targetP.resize(set + 1, 0);
+    }
+
+    // Check ghost lists for promotion
+    if (removeFromGhost(set, true, data->tag)) {
+        adjustP(set, true);
         data->listId = 2;
-        lruT2[data->set].push_back(data->tag);
-        data->lruIter = std::prev(lruT2[data->set].end());
-
-    // Cold miss → T1
+    } else if (removeFromGhost(set, false, data->tag)) {
+        adjustP(set, false);
+        data->listId = 2;
     } else {
         data->listId = 1;
-        lruT1[data->set].push_back(data->tag);
-        data->lruIter = std::prev(lruT1[data->set].end());
     }
-
-    // Enforce |T1| + |T2| <= k (associativity)
-    if (lruT1[data->set].size() + lruT2[data->set].size()
-        > (unsigned)params().assoc) {
-        // evict whichever the ARC rules say
-        bool evictT1 = (lruT1[data->set].size() > (unsigned)targetP[data->set])
-                       || lruT2[data->set].empty();
-        auto &victimList = evictT1 ? lruT1[data->set]
-                                   : lruT2[data->set];
-        Addr victimTag  = evictT1 ? victimList.front()
-                                  : victimList.front();
-        // remove from T1 or T2
-        victimList.pop_front();
-        // add to B1 or B2
-        addToGhost(data->set, evictT1, victimTag, params().assoc);
-    }
-
-    // Cap size of B1/B2
-    if (ghostB1[data->set].size() > (unsigned)params().assoc)
-        ghostB1[data->set].pop_front();
-    if (ghostB2[data->set].size() > (unsigned)params().assoc)
-        ghostB2[data->set].pop_front();
 }
 
-/**  
- * getVictim(): choose which block to evict  
- *   – same rule: evict LRU in T1 if |T1|>p or T2 empty, else LRU in T2  
- */
-ReplaceableEntry*
-ARC::getVictim(const ReplacementCandidates& cands) const
-{
-    // all candidates share same set
-    auto data0 = std::static_pointer_cast<ARCReplData>(
-                      cands[0]->replacementData);
-    int set = data0->set;
-
-    ensureSetExists(set);
-
-    bool evictT1 = (lruT1[set].size() > (unsigned)targetP[set])
-                   || lruT2[set].empty();
-    auto &victimList = evictT1 ? lruT1[set]
-                               : lruT2[set];
-
-    if (victimList.empty())
-        return nullptr;
-
-    Addr victimTag = victimList.front();
-    ReplaceableEntry *victim = nullptr;
-    for (auto *e : cands) {
-        auto *d = static_cast<ARCReplData*>(e->replacementData.get());
-        if (d->valid && d->tag == victimTag) {
-            victim = e;
-            break;
-        }
-    }
-    assert(victim);
-
-    // remove from T1/T2
-    victimList.pop_front();
-    // record in ghost
-    addToGhost(set, evictT1, victimTag, params().assoc);
-    return victim;
-}
-
-/** adjustP(): increase or decrease targetP using ghost sizes */
 void
 ARC::adjustP(int set, bool hitInB1) const
 {
-    size_t b1 = ghostB1[set].size();
-    size_t b2 = ghostB2[set].size();
-    int delta = 1;
+    size_t b1Size = ghostB1[set].size();
+    size_t b2Size = ghostB2[set].size();
 
-    if (hitInB1 && b1 < b2 && b1 > 0)
-        delta = (b2 + b1 - 1) / b1;
-
-    if (!hitInB1 && b2 < b1 && b2 > 0)
-        delta = (b1 + b2 - 1) / b2;
-
-    targetP[set] += hitInB1 ?  delta
-                            : -delta;
-    if (targetP[set] < 0)            targetP[set] = 0;
-    if ((unsigned)targetP[set] > params().assoc)
-        targetP[set] = params().assoc;
+    if (hitInB1) {
+        int delta = (b1Size >= b2Size) ? 1 : (b2Size + b1Size - 1) / b1Size; // Ceiling division
+        targetP[set] = std::min(targetP[set] + delta, static_cast<int>(ghostB1[set].size() + ghostB2[set].size()));
+    } else {
+        int delta = (b2Size >= b1Size) ? 1 : (b1Size + b2Size - 1) / b2Size;
+        targetP[set] = std::max(targetP[set] - delta, 0);
+    }
 }
 
-/** addToGhost(): append to B1 or B2, capping at assoc */
 void
-ARC::addToGhost(int set, bool isB1, Addr tag,
-                int assoc) const
+ARC::addToGhost(int set, bool isB1, Addr tag) const
 {
-    auto &G = isB1 ? ghostB1[set]
-                   : ghostB2[set];
-    G.push_back(tag);
-    if (G.size() > (unsigned)assoc)
-        G.pop_front();
+    std::list<Addr>& ghostList = isB1 ? ghostB1[set] : ghostB2[set];
+    ghostList.push_back(tag);
+
+    // Cap ghost list size to cache associativity (from candidates.size())
+    if (ghostList.size() > ghostB1.size()) // Adjust based on your cache's associativity
+        ghostList.pop_front();
 }
 
-/** removeFromGhost() finds & erases tag from B1/B2 */
 bool
 ARC::removeFromGhost(int set, bool isB1, Addr tag) const
 {
-    auto &G = isB1 ? ghostB1[set]
-                   : ghostB2[set];
-    auto it = std::find(G.begin(), G.end(), tag);
-    if (it == G.end()) return false;
-    G.erase(it);
-    return true;
+    std::list<Addr>& ghostList = isB1 ? ghostB1[set] : ghostB2[set];
+    auto it = std::find(ghostList.begin(), ghostList.end(), tag);
+    if (it != ghostList.end()) {
+        ghostList.erase(it);
+        return true;
+    }
+    return false;
+}
+
+ReplaceableEntry*
+ARC::getVictim(const ReplacementCandidates& candidates) const
+{
+    if (candidates.empty())
+        return nullptr;
+
+    // Get set from the first candidate
+    const CacheBlk* first_blk = static_cast<const CacheBlk*>(candidates[0]);
+    int set = first_blk->getSet();
+
+    // Resize if needed
+    if (set >= ghostB1.size()) {
+        ghostB1.resize(set + 1);
+        ghostB2.resize(set + 1);
+        targetP.resize(set + 1, 0);
+    }
+
+    // Calculate T1 and T2 counts
+    int t1Count = 0, t2Count = 0;
+    for (const auto& entry : candidates) {
+        auto data = std::static_pointer_cast<ARCReplData>(entry->replacementData);
+        if (data->valid) {
+            if (data->listId == 1) t1Count++;
+            else t2Count++;
+        }
+    }
+
+    // Decide eviction from T1 or T2
+    bool evictFromT1 = (t1Count > targetP[set]) || (t2Count == 0);
+    ReplaceableEntry* victim = nullptr;
+    Tick oldest = curTick();
+
+    // Find LRU in the selected list
+    for (const auto& entry : candidates) {
+        auto data = std::static_pointer_cast<ARCReplData>(entry->replacementData);
+        if (data->valid && ((evictFromT1 && data->listId == 1) || (!evictFromT1 && data->listId == 2))) {
+            if (data->lastTouchTick < oldest) {
+                oldest = data->lastTouchTick;
+                victim = entry;
+            }
+        }
+    }
+
+    // Fallback to any valid entry
+    if (!victim) {
+        for (const auto& entry : candidates) {
+            auto data = std::static_pointer_cast<ARCReplData>(entry->replacementData);
+            if (data->valid) {
+                victim = entry;
+                break;
+            }
+        }
+    }
+
+    // Update ghost lists
+    if (victim) {
+        auto victimData = std::static_pointer_cast<ARCReplData>(victim->replacementData);
+        addToGhost(set, victimData->listId == 1, victimData->tag);
+    }
+
+    return victim;
 }
 
 } // namespace replacement_policy
