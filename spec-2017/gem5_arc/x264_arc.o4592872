@@ -1,0 +1,32 @@
+Global frequency set at 1000000000000 ticks per second
+      0: board.pc.south_bridge.cmos.rtc: Real-time clock set to Sun Jan  1 00:00:00 2012
+gem5 Simulator System.  https://www.gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 version 24.1.0.2
+gem5 compiled Apr 29 2025 01:30:14
+gem5 started Apr 29 2025 09:12:25
+gem5 executing on scc-yc1, pid 408777
+command line: build/X86/gem5.opt --outdir=../results/x264_arc_proj configs/example/gem5_library/x86-spec-cpu2017-benchmarks-1MB.py --image ../disk-image/spec-2017/spec-2017-image/spec-2017 --partition 1 --benchmark 525.x264_r --size test
+
+info: Standard input is not a terminal, disabling listeners.
+info: Using default config
+CPUS:
+[<gem5.components.processors.simple_core.SimpleCore object at 0x1531d0b88fe0>, <gem5.components.processors.simple_core.SimpleCore object at 0x1531d0b89040>]
+Running the simulation
+Using KVM cpu
+Done booting Linux
+Reset stats at the start of ROI
+(5 billion instructions)...
+switching cpus
+Coming from max inst
+Total number: 5000331231
+(1 billion instructions)...
+Coming again from the max inst
+Total number: 6000789456
+Done with the simulation
+
+Performance statistics:
+roi simulated ticks: 10597789075860
+Ran a total of 33.123951019207 simulated seconds
+Total wallclock time: 54681.95s, 911.37 min
