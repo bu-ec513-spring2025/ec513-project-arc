@@ -1,0 +1,165 @@
+runcpu v6612 started at 2023-04-03 15:46:24 on "gem5-host"
+runcpu is: /home/gem5/spec2017/bin/harness/runcpu
+runcpu: runcpu --size test --iterations 1 --config myconfig.x86.cfg --define gcc_dir=/usr --noreportable --nobuild 527.cam4_r
+toolset: linux-x86_64
+suite: CPU2017 1.1.9
+
+Locating benchmarks...found 47 benchmarks in 73 benchsets.
+Reading config file '/home/gem5/spec2017/config/myconfig.x86.cfg'
+
+1 configuration selected:
+
+ Action    Run Mode   Workload     Report Type     Benchmarks
+--------   --------   --------   ---------------   ----------------------------
+validate   rate       test       SPECrate2017_fp   527.cam4_r                  
+-------------------------------------------------------------------------------
+
+Setting up environment for running 527.cam4_r...
+Starting runcpu for 527.cam4_r...
+Retrieving flags file (/home/gem5/spec2017/config/flags/gcc.xml)...
+Verbosity = 5
+Action    = validate
+Tune      = base,peak
+Label     = mytest-m64
+Size      = test
+benchmarks= 527.cam4_r
+outputs   = txt,html,cfg,pdf,csv
+username  = root
+Environment settings:
+LD_LIBRARY_PATH = "%{gcc_dir}/lib64/:%{gcc_dir}/lib/:/lib64"
+
+Benchmarks selected: 527.cam4_r
+When checking executables (/home/gem5/spec2017/benchspec/CPU/527.cam4_r/exe/cam4_r_peak.mytest-m64,/home/gem5/spec2017/benchspec/CPU/527.cam4_r/exe/cam4_validate_527_peak.mytest-m64), no checksums were
+  found in the config file.  They will be installed after build.
+When checking executables (/home/gem5/spec2017/benchspec/CPU/527.cam4_r/exe/cam4_r_peak.mytest-m64,/home/gem5/spec2017/benchspec/CPU/527.cam4_r/exe/cam4_validate_527_peak.mytest-m64), no checksums were
+  found in the config file.  They will be installed after build.
+Compiling Binaries
+------------------------------------------------------------------------
+FPP: "specpp -DSPEC -DNDEBUG -DNO_SHR_VMATH -DCO2A -DPERGRO -DPLON=144 -DPLAT=96 -DPLEV=26 -DPCNST=3 -DPCOLS=4 -DPTRM=1 -DPTRN=1 -DPTRK=1 -DSTAGGERED -D_NETCDF -DNO_R16 -I. -Iinclude -Inetcdf/include -DSPEC_AUTO_SUPPRESS_OPENMP -w -DHIDE_MPI -D_MPISERIAL -DNO_MPI2 -DSPEC_CASE_FLAG -DSPEC_LP64 <source> -o <source>.fppized.f9x"
+P: CPUFLAGS="-DSPEC -DNDEBUG"
+P: BENCH_FPPFLAGS="-DNO_SHR_VMATH -DCO2A -DPERGRO -DPLON=144 -DPLAT=96 -DPLEV=26 -DPCNST=3 -DPCOLS=4 -DPTRM=1 -DPTRN=1 -DPTRK=1 -DSTAGGERED -D_NETCDF -DNO_R16 -I. -Iinclude -Inetcdf/include -DSPEC_AUTO_SUPPRESS_OPENMP -w -DHIDE_MPI -D_MPISERIAL -DNO_MPI2"
+O: OPTIMIZE=""
+O: EXTRA_OPTIMIZE=""
+O: FPPOPTIMIZE=""
+O: EXTRA_FPPOPTIMIZE=""
+O: FOPTIMIZE=""
+O: EXTRA_FOPTIMIZE=""
+P: PORTABILITY="-DSPEC_CASE_FLAG"
+P: EXTRA_PORTABILITY="-DSPEC_LP64"
+P: FPORTABILITY=""
+P: EXTRA_FPORTABILITY=""
+COMP: "/usr/bin/gfortran           -m64 -c -o options.o -I. -Iinclude -Inetcdf/include -g -O3 <source>"
+C: FC="/usr/bin/gfortran           -m64"
+C: FOBJOPT="-c -o options"
+P: CPUFLAGS="-DSPEC -DNDEBUG"
+P: BENCH_FLAGS=""
+P: BENCH_FFLAGS="-I. -Iinclude -Inetcdf/include"
+O: OPTIMIZE="-g -O3"
+O: FOPTIMIZE=""
+P: PORTABILITY="-DSPEC_CASE_FLAG"
+P: FPORTABILITY=""
+O: EXTRA_FFLAGS=""
+O: EXTRA_OPTIMIZE=""
+O: EXTRA_FOPTIMIZE=""
+P: EXTRA_PORTABILITY="-DSPEC_LP64"
+P: EXTRA_FPORTABILITY=""
+COMP: "/usr/bin/gcc     -std=c99   -m64 -c -o options.o -DSPEC -DNDEBUG  -DNO_SHR_VMATH -DCO2A -DPERGRO -DPLON=144 -DPLAT=96 -DPLEV=26 -DPCNST=3 -DPCOLS=4 -DPTRM=1 -DPTRN=1 -DPTRK=1 -DSTAGGERED -D_NETCDF -DNO_R16 -I. -Iinclude -Inetcdf/include -DSPEC_AUTO_SUPPRESS_OPENMP -DSPEC_AUTO_BYTEORDER=0x12345678 -g -O3        -DSPEC_CASE_FLAG  -fno-strict-aliasing     -DSPEC_LP64  <source>"
+C: CC="/usr/bin/gcc     -std=c99   -m64"
+C: COBJOPT="-c -o options"
+P: CPUFLAGS="-DSPEC -DNDEBUG"
+P: BENCH_FLAGS=""
+P: BENCH_CFLAGS="-DNO_SHR_VMATH -DCO2A -DPERGRO -DPLON=144 -DPLAT=96 -DPLEV=26 -DPCNST=3 -DPCOLS=4 -DPTRM=1 -DPTRN=1 -DPTRK=1 -DSTAGGERED -D_NETCDF -DNO_R16 -I. -Iinclude -Inetcdf/include -DSPEC_AUTO_SUPPRESS_OPENMP -DSPEC_AUTO_BYTEORDER=0x12345678"
+O: OPTIMIZE="-g -O3"
+O: COPTIMIZE=""
+P: PORTABILITY="-DSPEC_CASE_FLAG"
+P: CPORTABILITY=""
+O: EXTRA_CFLAGS="-fno-strict-aliasing"
+O: EXTRA_OPTIMIZE=""
+O: EXTRA_COPTIMIZE=""
+P: EXTRA_PORTABILITY="-DSPEC_LP64"
+P: EXTRA_CPORTABILITY=""
+LINK: "/usr/bin/gfortran           -m64      -g -O3     -DSPEC_CASE_FLAG     <objects>            -o options  "
+C: LD="/usr/bin/gfortran           -m64"
+O: OPTIMIZE="-g -O3"
+P: PORTABILITY="-DSPEC_CASE_FLAG"
+C: LDOUT="-o options"
+ FC_VERSION_OPTION:
+ CC_VERSION_OPTION:
+GNU Fortran (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
+Copyright (C) 2017 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
+Copyright (C) 2017 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+COMP: "/usr/bin/gfortran           -m64 -c -o options.o -I. -Iinclude -Inetcdf/include -g -O3 <source>"
+C: FC="/usr/bin/gfortran           -m64"
+C: FOBJOPT="-c -o options"
+P: CPUFLAGS="-DSPEC -DNDEBUG"
+P: BENCH_FLAGS=""
+P: BENCH_FFLAGS="-I. -Iinclude -Inetcdf/include"
+O: OPTIMIZE="-g -O3"
+O: FOPTIMIZE=""
+P: PORTABILITY="-DSPEC_CASE_FLAG"
+P: FPORTABILITY=""
+O: EXTRA_FFLAGS=""
+O: EXTRA_OPTIMIZE=""
+O: EXTRA_FOPTIMIZE=""
+P: EXTRA_PORTABILITY="-DSPEC_LP64"
+P: EXTRA_FPORTABILITY=""
+COMP: "/usr/bin/gcc     -std=c99   -m64 -c -o options.o -DSPEC -DNDEBUG  -DNO_SHR_VMATH -DCO2A -DPERGRO -DPLON=144 -DPLAT=96 -DPLEV=26 -DPCNST=3 -DPCOLS=4 -DPTRM=1 -DPTRN=1 -DPTRK=1 -DSTAGGERED -D_NETCDF -DNO_R16 -I. -Iinclude -Inetcdf/include -DSPEC_AUTO_SUPPRESS_OPENMP -DSPEC_AUTO_BYTEORDER=0x12345678 -g -O3        -DSPEC_CASE_FLAG  -fno-strict-aliasing     -DSPEC_LP64  <source>"
+C: CC="/usr/bin/gcc     -std=c99   -m64"
+C: COBJOPT="-c -o options"
+P: CPUFLAGS="-DSPEC -DNDEBUG"
+P: BENCH_FLAGS=""
+P: BENCH_CFLAGS="-DNO_SHR_VMATH -DCO2A -DPERGRO -DPLON=144 -DPLAT=96 -DPLEV=26 -DPCNST=3 -DPCOLS=4 -DPTRM=1 -DPTRN=1 -DPTRK=1 -DSTAGGERED -D_NETCDF -DNO_R16 -I. -Iinclude -Inetcdf/include -DSPEC_AUTO_SUPPRESS_OPENMP -DSPEC_AUTO_BYTEORDER=0x12345678"
+O: OPTIMIZE="-g -O3"
+O: COPTIMIZE=""
+P: PORTABILITY="-DSPEC_CASE_FLAG"
+P: CPORTABILITY=""
+O: EXTRA_CFLAGS="-fno-strict-aliasing"
+O: EXTRA_OPTIMIZE=""
+O: EXTRA_COPTIMIZE=""
+P: EXTRA_PORTABILITY="-DSPEC_LP64"
+P: EXTRA_CPORTABILITY=""
+LINK: "/usr/bin/gfortran           -m64      -g -O3     -DSPEC_CASE_FLAG     <objects>            -o options  "
+C: LD="/usr/bin/gfortran           -m64"
+O: OPTIMIZE="-g -O3"
+P: PORTABILITY="-DSPEC_CASE_FLAG"
+C: LDOUT="-o options"
+ FC_VERSION_OPTION:
+ CC_VERSION_OPTION:
+GNU Fortran (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
+Copyright (C) 2017 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
+Copyright (C) 2017 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+  Up to date 527.cam4_r base mytest-m64
+------------------------------------------------------------------------
+When checking options for /home/gem5/spec2017/benchspec/CPU/527.cam4_r/exe/cam4_r_peak.mytest-m64,/home/gem5/spec2017/benchspec/CPU/527.cam4_r/exe/cam4_validate_527_peak.mytest-m64, no checksums were
+  found in the config file.  They will be installed after build.
+When checking executables (/home/gem5/spec2017/benchspec/CPU/527.cam4_r/exe/cam4_r_peak.mytest-m64,/home/gem5/spec2017/benchspec/CPU/527.cam4_r/exe/cam4_validate_527_peak.mytest-m64), no checksums were
+  found in the config file.  They will be installed after build.
+  NOT Building 527.cam4_r peak mytest-m64; nobuild is on
+
+Build successes for fprate: None
+Build errors for fprate: 527.cam4_r(peak; nobuild)
+
+Setting Up Run Directories
+  Setting up 527.cam4_r test base mytest-m64 (1 copy): 
+ERROR: Copying /home/gem5/spec2017/benchspec/CPU/527.cam4_r/data/all/input/aero_1.9x2.5_L26_2000clim_c091112.nc to /home/gem5/spec2017/benchspec/CPU/527.cam4_r/run/run_base_test_mytest-m64.0000/aero_1.9x2.5_L26_2000clim_c091112.nc failed: No space left on device
+   at /home/gem5/spec2017/bin/harness/benchmark.pm line 696.
+	Spec::Benchmark::copy_or_link("aero_1.9x2.5_L26_2000clim_c091112.nc", undef, HASH(0x5cde1c8), 0, 1, "", ARRAY(0x2762c08)) called at /home/gem5/spec2017/bin/harness/benchmark.pm line 448
+	Spec::Benchmark::copy_input_files_to(Spec::Benchmark::cam4_r527=HASH(0x5b60b30), 0, "test", undef, "/home/gem5/spec2017/benchspec/CPU/527.cam4_r/run/run_base_test_mytest-m64.0000") called at /home/gem5/spec2017/bin/harness/benchmark.pm line 2647
+	Spec::Benchmark::setup_rundirs(Spec::Benchmark::cam4_r527=HASH(0x5b60b30), 1, undef) called at /home/gem5/spec2017/bin/harness/runcpu line 1210
+
+ERROR: couldn't copy file 'aero_1.9x2.5_L26_2000clim_c091112.nc' for test input set
+ERROR: Copying input files to first run directory at /home/gThe log for this run is in /home/gem5/spec2017/result/CPU2017.001.log
+
+runcpu finished at 2023-04-03 15:46:46; 22 total seconds elapsed
